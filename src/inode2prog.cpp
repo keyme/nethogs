@@ -29,6 +29,8 @@
 #include <iostream>
 #include <cstdio>
 #include <unistd.h>
+#include <map>
+#include <sstream>
 #include <string>
 #include <map>
 #include <sys/stat.h>
@@ -86,8 +88,10 @@ static std::string read_file(int fd) {
 
   for (int length; (length = read(fd, buf, sizeof(buf))) > 0;) {
     if (length < 0) {
-      std::fprintf(stderr, "Error reading file: %s\n", std::strerror(errno));
-      std::exit(34);
+      std::stringstream error;
+      error << "Error reading file:" << std::strerror(errno) << "\n";
+      std::fprintf(stderr, "%s", error.str().c_str());
+      throw error.str();
     }
     content.append(buf, length);
   }
@@ -99,18 +103,21 @@ static std::string read_file(const char *filepath) {
   int fd = open(filepath, O_RDONLY);
 
   if (fd < 0) {
-    std::fprintf(stderr, "Error opening %s: %s\n", filepath,
-                 std::strerror(errno));
-    std::exit(3);
-    return NULL;
+    std::stringstream error;
+    error << "Error opening " << filepath << ":" << std::strerror(errno)
+          << "\n";
+    std::fprintf(stderr, "%s", error.str().c_str());
+    throw error.str();
   }
 
   std::string contents = read_file(fd);
 
   if (close(fd)) {
-    std::fprintf(stderr, "Error opening %s: %s\n", filepath,
-                 std::strerror(errno));
-    std::exit(34);
+    std::stringstream error;
+    error << "Error opening " << filepath << ":" << std::strerror(errno)
+          << "\n";
+    std::fprintf(stderr, "%s", error.str().c_str());
+    throw error.str();
   }
 
   return contents;
@@ -124,10 +131,13 @@ std::string getcmdline(pid_t pid) {
   std::string cmdline;
   bool replace_null = false;
   try {
-   cmdline = read_file(filename);
-  } catch (int e) {
-      std::fprintf(stderr, "An exception occurred. Exception Nr %i \n", e);
-      cmdline = "";
+    cmdline = read_file(filename);
+  } catch (const char *e) {
+    std::fprintf(stderr, "An exception occurred. Exception %s \n", e);
+    cmdline = "";
+  } catch (...) {
+    std::fprintf(stderr, "An exception occurred while reading cmdline.\n");
+    cmdline = "";
   }
 
   if (cmdline.empty() || cmdline[cmdline.length() - 1] != '\0') {
